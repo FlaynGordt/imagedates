@@ -76,11 +76,5 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\FindDateTimeByFileName\FindStuff.csproj">
-      <Project>{b8efee31-026b-49b6-8b18-809dd5eaac7a}</Project>
-      <Name>FindStuff</Name>
-    </ProjectReference>
-  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
