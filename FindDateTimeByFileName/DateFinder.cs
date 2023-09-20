@@ -28,7 +28,7 @@ namespace FindStuff
             DateTime? filenameDate = null;
             DateTime? exifDate = null;
 
-            string jsonResult = FindInJson(fileNameWithoutExtension, verbose);
+            string jsonResult = FindInJson(fileNameWithoutExtension, file.Extension, verbose);
             if (!string.IsNullOrEmpty(jsonResult))
             {
                 var dto = DateTimeOffset.FromUnixTimeSeconds(long.Parse(jsonResult));
@@ -63,31 +63,40 @@ namespace FindStuff
 
             }
 
-            var date = jsonDate ?? filenameDate ?? exifDate;
+            var date = filenameDate ?? jsonDate ?? exifDate;
 
-            var withValue = 0;
-            long totalTicks = 0;
-
-            if (exifDate.HasValue)
+            if (date.HasValue)
             {
-                totalTicks = totalTicks + exifDate.Value.Ticks;
-                withValue++;
-            }
-            if (filenameDate.HasValue)
-            {
-                totalTicks = totalTicks + filenameDate.Value.Ticks;
-                withValue++;
-            }
-            if (jsonDate.HasValue)
-            {
-                totalTicks = totalTicks + jsonDate.Value.Ticks;
-                withValue++;
+                // manchmal steht im json doch ein besserer wert als im dateinamen, weil dieser nur ein datum aber keine Uhrzeit hat.
+                if ( date.Value.Hour == 0 && date.Value.Minute == 0 && date.Value.Second == 0 )
+                {
+                    date = jsonDate ?? exifDate ?? filenameDate;
+                }
             }
 
-            if ( withValue > 0 )
-            {
-                date = new DateTime(totalTicks / withValue);
-            }
+            //var withValue = 0;
+            //long totalTicks = 0;
+
+            //if (exifDate.HasValue)
+            //{
+            //    totalTicks = totalTicks + exifDate.Value.Ticks;
+            //    withValue++;
+            //}
+            //if (filenameDate.HasValue)
+            //{
+            //    totalTicks = totalTicks + filenameDate.Value.Ticks;
+            //    withValue++;
+            //}
+            //if (jsonDate.HasValue)
+            //{
+            //    totalTicks = totalTicks + jsonDate.Value.Ticks;
+            //    withValue++;
+            //}
+
+            //if ( withValue > 0 )
+            //{
+            //    date = new DateTime(totalTicks / withValue);
+            //}
 
 
             if (FallbackAndOverride.TryGetValue(fileNameWithoutExtension, out var fallbackDate))
@@ -143,7 +152,7 @@ namespace FindStuff
                 }
             }
 
-            if (verbose) Console.WriteLine("Datefinder.GetByFileName: " + $"Looking dates in {fileName}");
+            if (verbose) Console.WriteLine("Datefinder.GetByFileName: " + $"Looking for dates in {fileName}");
 
             var splits = fileName.Split('.')[0].Split('~')[0].Split('-')[0].Split('_').ToList();
 
@@ -190,7 +199,7 @@ namespace FindStuff
             return dateTimeOffset.ToUnixTimeSeconds().ToString();
         }
 
-        private static string FindInJson(string fileName, bool verbose)
+        private static string FindInJson(string fileName, string extension, bool verbose)
         {
             if (fileName.StartsWith("original_"))
             {
@@ -200,7 +209,7 @@ namespace FindStuff
             foreach (var item in ZipMagic.ZipEntries)
             {
                 // find by filename
-                if (item.Name.ToLower().Contains(fileName.ToLower()))
+                if (item.Name.ToLower().Contains(fileName.ToLower()) && item.Name.ToLower().Contains(extension.ToLower()))
                 {
                     using (StreamReader s = new StreamReader(ZipMagic.Zipfile.GetInputStream(item)))
                     {
@@ -214,6 +223,11 @@ namespace FindStuff
             }
 
             if (verbose) Console.WriteLine("DateFinder.FindInJson: " + fileName + " not found in zip."); 
+
+            if (extension.ToLower().Contains("webm"))
+            {
+                return FindInJson(fileName, "mp4", verbose);
+            }
 
             return null;
         }

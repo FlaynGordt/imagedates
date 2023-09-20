@@ -1,16 +1,19 @@
-﻿using System.Diagnostics;
+﻿using FindStuff;
+using System.Diagnostics;
 using System.Text;
 
 namespace GenerateSlides
 {
-
     internal class GenerateSlidesProgram
     {
         static void Main(string[] args)
         {
-            Country country = Country.Peru;
+            Country country = Current.Country;
+            GenerateSlides(country, true);
+        }
 
-            bool verbose = true;
+        private static void GenerateSlides(Country country, bool verbose)
+        {
 
             string[] extensions = new string[] { "jpg", "webm", "png" };
 
@@ -18,15 +21,15 @@ namespace GenerateSlides
 
             foreach (var extension in extensions)
             {
-                relevantFiles = relevantFiles.Concat(Directory.GetFiles(FindStuff.Paths.BTD_PATH, "*." + extension));
+                relevantFiles = relevantFiles.Concat(Directory.GetFiles(Paths.BTD.Combine(country), "*." + extension));
             }
 
             var files = relevantFiles.Select(f => new FileInfo(f)).OrderBy(f => f.CreationTime)
-                                     .Where(f => CountryFilter(f.CreationTime, country))
+                                     .Where(f => country != Country.Ecuador || CountryFilter(f.CreationTime, country)) // für ecuador nach datum filtern
                                      .ToArray();
 
-            DirectoryInfo outputDirectory = new DirectoryInfo(Path.Combine(FindStuff.Paths.OUT_PATH, country.ToString()));
-            
+            DirectoryInfo outputDirectory = new DirectoryInfo(Paths.SLIDY_OUT.Combine(country));
+
             PrepareDirectoriesAndCopyFiles(outputDirectory);
             DirectoryInfo outputImageFilesDirectory = Directory.CreateDirectory(Path.Combine(outputDirectory.FullName, "files"));
 
@@ -34,7 +37,7 @@ namespace GenerateSlides
 
             var generatedDivsText = GenerateHTMLDivs(slideEntries, verbose);
 
-            var htmlTextGenerated = File.ReadAllText(FindStuff.Paths.HTML_TEMPATE_PATH);
+            var htmlTextGenerated = File.ReadAllText(FindStuff.Paths.HTML_TEMPATE);
             htmlTextGenerated = htmlTextGenerated.Replace("SLIDESPLACEHOLDER", generatedDivsText);
             htmlTextGenerated = htmlTextGenerated.Replace("COVERIMAGEPLACEHOLDER", country.ToString().ToLower() + ".jpg");
             htmlTextGenerated = htmlTextGenerated.Replace("TITELPLACEHOLDER", country.ToString().ToUpper());
@@ -97,7 +100,7 @@ namespace GenerateSlides
             outputDirectory.Create();
 
            
-            foreach (var resourceFile in Directory.EnumerateFiles(FindStuff.Paths.HTML_FILES_PATH).Select(f => new FileInfo(f)))
+            foreach (var resourceFile in Directory.EnumerateFiles(FindStuff.Paths.HTML_FILES).Select(f => new FileInfo(f)))
             {
                 resourceFile.CopyTo(Path.Combine(outputDirectory.FullName, resourceFile.Name));
             }

@@ -2,12 +2,17 @@
 
 using FindStuff;
 
-var allFiles = Directory.EnumerateFiles(FindStuff.Paths.BTD_PATH, "*.*");
+var allFiles = Directory.EnumerateFiles(Paths.BTD.Combine(Current.Country), "*.*");
 
-bool verbose = true;
+bool verbose = false;
 
 foreach (var file in allFiles.Select(f => new FileInfo(f)))
 {
+    if (file.Extension.Contains("txt"))
+    {
+        continue;
+    }
+
     var date = DateFinder.SearchDate(file, verbose);
 
     if (!date.HasValue)
