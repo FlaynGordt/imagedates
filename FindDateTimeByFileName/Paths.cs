@@ -18,10 +18,5 @@
         public static string BACKUP = Path.Combine(SLIDY_ROOT, "backup");
       
         public static string DOCX_OUT = SLIDY_ROOT;
-
-        public static string Combine(this string path, Country country)
-        {
-            return Path.Combine(path, country.ToString());
-        }
     }
 }

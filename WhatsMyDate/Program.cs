@@ -9,6 +9,5 @@ do
 
     Console.WriteLine(DateFinder.SearchDate(new FileInfo(filename), true));
 
-    Console.ReadLine();
 } while (!string.IsNullOrWhiteSpace(filename));
 

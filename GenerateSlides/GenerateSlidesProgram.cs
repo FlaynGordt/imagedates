@@ -9,23 +9,18 @@ namespace GenerateSlides
         static void Main(string[] args)
         {
             Country country = Current.Country;
+            
+            Console.Title = country.ToString();
+
             GenerateSlides(country, true);
         }
 
         private static void GenerateSlides(Country country, bool verbose)
         {
+            List<FileInfo> relevantFiles = Files.GetFiles(Paths.BTD.Combine(country));
 
-            string[] extensions = new string[] { "jpg", "webm", "png" };
-
-            IEnumerable<string> relevantFiles = Enumerable.Empty<string>();
-
-            foreach (var extension in extensions)
-            {
-                relevantFiles = relevantFiles.Concat(Directory.GetFiles(Paths.BTD.Combine(country), "*." + extension));
-            }
-
-            var files = relevantFiles.Select(f => new FileInfo(f)).OrderBy(f => f.CreationTime)
-                                     .Where(f => country != Country.Ecuador || CountryFilter(f.CreationTime, country)) // für ecuador nach datum filtern
+            var files = relevantFiles.Select(f => f.Load())
+                                     .Where(f => country != Country.Ecuador || CountryFilter(f.DateTime, country)) // für ecuador nach datum filtern
                                      .ToArray();
 
             DirectoryInfo outputDirectory = new DirectoryInfo(Paths.SLIDY_OUT.Combine(country));
@@ -33,9 +28,10 @@ namespace GenerateSlides
             PrepareDirectoriesAndCopyFiles(outputDirectory);
             DirectoryInfo outputImageFilesDirectory = Directory.CreateDirectory(Path.Combine(outputDirectory.FullName, "files"));
 
-            List<SlideEntry> slideEntries = GenerateSlideEntries(files, outputImageFilesDirectory);
+            //List<SlideEntry> slideEntries = 
+                CopyFiles(files, outputImageFilesDirectory);
 
-            var generatedDivsText = GenerateHTMLDivs(slideEntries, verbose);
+            var generatedDivsText = GenerateHTMLDivs(files, verbose);
 
             var htmlTextGenerated = File.ReadAllText(FindStuff.Paths.HTML_TEMPATE);
             htmlTextGenerated = htmlTextGenerated.Replace("SLIDESPLACEHOLDER", generatedDivsText);
@@ -44,7 +40,7 @@ namespace GenerateSlides
 
             File.WriteAllText(Path.Combine(outputDirectory.FullName, "out.html"), htmlTextGenerated);
 
-            Console.WriteLine(slideEntries.Count + " Slides. Press 'o' to open or any other key to close");
+            Console.WriteLine(files.Length + " Slides. Press 'o' to open or any other key to close");
             if (Console.ReadKey(true).KeyChar == 'o')
             {
                 var p = new Process();
@@ -106,26 +102,26 @@ namespace GenerateSlides
             }
         }
 
-        private static string GenerateHTMLDivs(List<SlideEntry> slideEntries, bool verbose)
+        private static string GenerateHTMLDivs(FileMeta[] slideEntries, bool verbose)
         {
             var sb = new StringBuilder();
             int counter = 0;
-            foreach (var slideEntry in slideEntries)
+            foreach (var slideEntry in slideEntries.OrderBy(f => f.DateTime))
             {
                 Console.WriteLine("--------------------------------");
-                Console.WriteLine(++counter + " " + slideEntry.Date.ToString("ddMMyyyy") + " " + slideEntry.ImageFile.Name);
-                var relativeFileName = "files/" + slideEntry.ImageFile.Name;
+                Console.WriteLine(++counter + " " + slideEntry.DateTime.ToString("ddMMyyyy") + " " + slideEntry.OriginalFile.Name);
+                var relativeFileName = "files/" + slideEntry.OriginalFile.Name;
 
                 sb.AppendLine("<div class=\"slide container hidden\">");
-                sb.AppendLine($"  <h1>{slideEntry.Titel}" +
-                                        $"</br>{slideEntry.ImageFile.CreationTime.ToString("dd.MM.yyyy")}" +
-                                "</h1> ");
+                sb.AppendLine($"  <h1>{slideEntry.Titel}")
+                  .AppendLine($"</br>{slideEntry.OriginalFile.Name}-{slideEntry.OriginalFile.CreationTime.ToString("dd.MM.yyyy hh:mm")}")
+                  .AppendLine("</h1> ");
 
-                if (slideEntry.ImageFile.FullName.ToLower().EndsWith("webm"))
+                if (slideEntry.OriginalFile.FullName.ToLower().EndsWith("webm"))
                 {
                     sb.AppendLine($"       <video src = \"{relativeFileName}\" controls autoplay muted loop lazy height=\"85%\"  style=\"display: block; margin-left: auto; margin-right: auto;\"/>");
                 }
-                else if (slideEntry.ImageFile.FullName.ToLower().EndsWith("mp4"))
+                else if (slideEntry.OriginalFile.FullName.ToLower().EndsWith("mp4"))
                 {
                     sb.AppendLine($"       <video src = \"{relativeFileName}\" controls autoplay muted loop lazy height=\"85%\"  style=\"display: block; margin-left: auto; margin-right: auto;\"/>");
                 }
@@ -134,27 +130,18 @@ namespace GenerateSlides
                     sb.AppendLine($"       <img src=\"{relativeFileName}\" lazy height=\"85%\"  style=\"display: block; margin-left: auto; margin-right: auto;\"/>");
                 }
 
-                if (!string.IsNullOrWhiteSpace(slideEntry.Quote))
+                if (!string.IsNullOrWhiteSpace(slideEntry.Comment))
                 {
-                    sb.AppendLine($"<div class=\"bottom-right\">{slideEntry.Quote}</div>");
+                    sb.AppendLine($"<div class=\"bottom-right\">{slideEntry.Comment}</div>");
                 }
 
-                if (string.IsNullOrWhiteSpace(slideEntry.Link))
+                if (slideEntry.Pos != null)
                 {
-                    // if there is no manual link, but the image contains an exact location use it.
-                    var location = FindStuff.LocationsFinder.FindForFile(slideEntry.ImageFile, verbose);
+                    var link = $"https://earth.google.com/web/search/{slideEntry.Pos.Lat.ToString().Replace(",", ".")},{slideEntry.Pos.Lon.ToString().Replace(",", ".")}";
 
-                    if (location != null)
-                    {
-                        slideEntry.Link = $"https://earth.google.com/web/search/{location.Lat.ToString().Replace(",", ".")},{location.Lon.ToString().Replace(",", ".")}";
-                    }
-                }
-
-                if (!string.IsNullOrWhiteSpace(slideEntry.Link))
-                {
                     sb.AppendLine($"<div class=\"top-right\" style=\"display: block; margin-top: 100px; margin-right: 20px;\">");
 
-                    sb.AppendLine($"       <a href=\"{slideEntry.Link}\" target=\"_earth\">🌎</a>");
+                    sb.AppendLine($"       <a href=\"{link}\" target=\"_earth\">🌎</a>");
                     sb.AppendLine("</div>");
                 }
 
@@ -164,54 +151,19 @@ namespace GenerateSlides
             return sb.ToString();
         }
 
-        private static List<SlideEntry> GenerateSlideEntries(FileInfo[] files, DirectoryInfo outpuFilesDirectory)
+        private static void CopyFiles(FileMeta[] files, DirectoryInfo outpuFilesDirectory)
         {
-            List<SlideEntry> slideEntries = new List<SlideEntry>();
-
-            foreach (var file in files)
+         
+            foreach (var fileMeta in files.OrderBy(f => f.DateTime))
             {
-                file.CopyTo(Path.Combine(outpuFilesDirectory.FullName, file.Name));
+                fileMeta.OriginalFile.CopyTo(Path.Combine(outpuFilesDirectory.FullName, fileMeta.OriginalFile.Name));
 
-                string quote = "";
-                if (File.Exists(file.FullName + ".txt"))
-                {
-                    quote = File.ReadAllText(file.FullName + ".txt").Replace("  ", "</br>");
-                }
-
-                string titel = "";
-                if (File.Exists(file.FullName + ".titel.txt"))
-                {
-                    titel = File.ReadAllText(file.FullName + ".titel.txt");
-                }
-
-                string link = "";
-                if (File.Exists(file.FullName + ".link.txt"))
-                {
-                    link = File.ReadAllText(file.FullName + ".link.txt");
-                }
-
-                slideEntries.Add(new SlideEntry()
-                {
-                    ImageFile = file,
-                    Quote = quote,
-                    Titel = titel,
-                    Link = link,
-                    Date = file.CreationTime,
-                });
             }
 
-            return slideEntries;
         }
+
     }
 
-    public class SlideEntry
-    {
-        public FileInfo ImageFile { get; set; }
-        public string Quote { get; set; }
-        public string Titel { get; set; }
-        public string Link { get; set; }
-        public DateTime Date { get; set; }
-    }
 
 }
 

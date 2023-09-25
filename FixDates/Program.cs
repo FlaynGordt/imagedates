@@ -4,11 +4,11 @@ using FindStuff;
 
 var allFiles = Directory.EnumerateFiles(Paths.BTD.Combine(Current.Country), "*.*");
 
-bool verbose = false;
+bool verbose = true;
 
 foreach (var file in allFiles.Select(f => new FileInfo(f)))
 {
-    if (file.Extension.Contains("txt"))
+    if (file.Extension.Contains("json"))
     {
         continue;
     }
@@ -21,13 +21,19 @@ foreach (var file in allFiles.Select(f => new FileInfo(f)))
     }
     else
     {
-        if (file.CreationTime != date)
+        var fm = file.Load();
+        
+        if (fm.DateTime != date)
         {
             Console.WriteLine("[U]" + file.Name + " -> " + date);
+
+            fm.DateTime = date.Value;
+            fm.Save();
+
             file.CreationTime = date.Value;
         }
         else { if(verbose) Console.WriteLine("[S]" + file.Name + " -> " + date); }
     }
 }
-
+Console.WriteLine("done");
 Console.ReadLine(); 

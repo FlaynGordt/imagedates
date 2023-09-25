@@ -4,9 +4,8 @@ namespace FindStuff
 {
     public static class Current
     {
-        public static Country Country = Country.Ecuador;
+        public static Country Country = Country.Peru;
     }
-    
 
     public enum Country
     {
